@@ -1,101 +1,575 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
-
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>柑橘灌溉建議系統 | V3.0</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet"
-    integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>柑橘園灌溉計算系統</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { 
+            padding: 20px; 
+            background-color: #f8f9fa; 
+        }
+        .container { 
+            max-width: 1200px; 
+            background: white; 
+            padding: 20px; 
+            border-radius: 10px; 
+            box-shadow: 0 0 10px rgba(0,0,0,0.1); 
+        }
+        .form-section { 
+            border: 1px solid #dee2e6; 
+            padding: 15px; 
+            margin-bottom: 20px; 
+            border-radius: 5px; 
+        }
+        .result-table { 
+            font-size: 0.9em; 
+        }
+        .stage-info { 
+            background-color: #e9ecef; 
+            padding: 10px; 
+            margin-top: 10px; 
+            border-radius: 5px; 
+        }
+        .calculation-details { 
+            font-size: 0.85em; 
+            color: #666; 
+        }
+        .info-icon {
+            cursor: help;
+            color: #007bff;
+            margin-left: 5px;
+        }
+        .parameter-description {
+            font-size: 0.8em;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        .alert-info-custom {
+            background-color: #e8f4f8;
+            border-color: #bee5eb;
+            color: #0c5460;
+        }
+        .debug-info {
+            font-family: monospace;
+            font-size: 0.8em;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            margin-top: 20px;
+            display: none;
+        }
+    </style>
 </head>
-
 <body>
-  <div class="container">
-    <div class="card p-2 border-0 shadow mt-2">
-      <h1 class="text-success h3 fw-bold mb-3">柑橘灌溉建議系統 <span class="h6 text-secondary">靜態v3.0</span></h1>
+    <div class="container">
+        <h2 class="text-center mb-4">柑橘園灌溉計算系統</h2>
+        
+        <form id="irrigationForm">
+            <!-- 基本參數設定 -->
+            <div class="form-section">
+                <h4>基本參數設定</h4>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">計算日期</label>
+                            <input type="date" class="form-control" id="calculationDate" required>
+                            <div class="parameter-description">選擇要計算灌溉量的日期</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">當前生育期</label>
+                            <select class="form-control" id="growthStage" required>
+                                <option value="">請選擇當前生育期</option>
+                                <option value="flowerBud">花芽分化期 (需水量低)</option>
+                                <option value="springFlush">春梢萌發期 (需水量中)</option>
+                                <option value="fruitDev">著果及果實發育期 (需水量高)</option>
+                                <option value="harvest">果實轉色至採收期 (需水量中)</option>
+                                <option value="dormant">休眠期 (需水量低)</option>
+                            </select>
+                            <div class="parameter-description">請根據實際觀察選擇當前生育期</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">樹齡 (年)</label>
+                            <input type="number" class="form-control" id="treeAge" min="1" required>
+                            <div class="parameter-description">柑橘樹的實際年齡，影響作物係數計算</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">種植密度</label>
+                            <select class="form-control" id="plantingDensity">
+                                <option value="high">高密度 (≥ 200株/公頃)</option>
+                                <option value="low">低密度 (< 200株/公頃)</option>
+                            </select>
+                            <div class="parameter-description">影響整體用水需求計算</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">土壤質地</label>
+                            <select class="form-control" id="soilType" required>
+                                <option value="0.47">砂土 (0.47 mm/cm)</option>
+                                <option value="1.28">砂壤土 (1.28 mm/cm)</option>
+                                <option value="1.92">壤土 (1.92 mm/cm)</option>
+                                <option value="2.23">砏壤土 (2.23 mm/cm)</option>
+                                <option value="2.33">黏壤土 (2.33 mm/cm)</option>
+                                <option value="2.30">砏黏土 (2.30 mm/cm)</option>
+                                <option value="2.30">黏土 (2.30 mm/cm)</option>
+                            </select>
+                            <div class="parameter-description">不同土壤質地的水分持存能力不同</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">根系深度 (cm)</label>
+                            <input type="number" class="form-control" id="rootDepth" min="10" max="200" value="50" required>
+                            <div class="parameter-description">有效根系分布深度，通常在30-100cm之間</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-      <form id="irrigationForm">
-        <div class="d-flex mb-3">
-          <div class="form-group me-2">
-            <label for="treeAge">樹齡(年):</label>
-            <input type="number" id="treeAge" required min="1" max="1000" value="15">
-          </div>
-          <div class="form-group">
-            <label for="soilType">土壤質地:</label>
-            <select id="soilType" required>
-              <option value="砂土">砂土</option>
-              <option value="砂壤土">砂壤土</option>
-              <option value="壤土" selected>壤土</option>
-              <option value="砏壤土">砏壤土</option>
-              <option value="黏壤土">黏壤土</option>
-              <option value="砏黏土">砏黏土</option>
-              <option value="黏土">黏土</option>
-            </select>
-          </div>
+            <!-- 管理目標設定 -->
+            <div class="form-section">
+                <h4>管理目標設定</h4>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">水分管理策略</label>
+                            <select class="form-control" id="managementTarget" required>
+                                <option value="wet">濕潤 (土壤水分張力 25 kPa)</option>
+                                <option value="suitable">適中 (土壤水分張力 40 kPa)</option>
+                                <option value="slightDry">略乾 (土壤水分張力 60 kPa)</option>
+                                <option value="controlled">控制乾燥 (土壤水分張力 100 kPa)</option>
+                            </select>
+                            <div class="parameter-description">根據生育期和管理目標選擇合適的水分狀態</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">灌溉系統</label>
+                            <select class="form-control" id="irrigationType" required>
+                                <option value="sprinkler">噴灌 (效率=0.85)</option>
+                                <option value="microSpray">微噴/霧灌 (效率=0.90)</option>
+                                <option value="drip">滴灌 (效率=0.95)</option>
+                            </select>
+                            <div class="parameter-description">不同灌溉系統的效率會影響實際灌溉量</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 當日數據輸入 -->
+            <div class="form-section">
+                <h4>當日數據輸入</h4>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">前一天土壤耗水量 D[x-1] (mm)</label>
+                            <input type="number" class="form-control" id="previousDeficit" step="0.1" value="20" required>
+                            <div class="parameter-description">前一天的土壤水分消耗量</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">日降雨量 (mm)</label>
+                            <input type="number" class="form-control" id="rainfall" step="0.1" value="0" required>
+                            <div class="parameter-description">當日實際降雨量或預報降雨量</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center">
+                <button type="button" class="btn btn-primary" onclick="calculateIrrigation()">計算灌溉建議</button>
+                <button type="button" class="btn btn-secondary ms-2" onclick="toggleDebugInfo()">顯示計算細節</button>
+            </div>
+        </form>
+
+        <div id="results" class="mt-4" style="display: none;">
+            <h4>計算結果</h4>
+            <div class="stage-info mb-3" id="growthStageInfo"></div>
+            <div class="table-responsive">
+                <table class="table table-bordered result-table">
+                    <thead>
+                        <tr>
+                            <th>計算項目</th>
+                            <th>數值</th>
+                            <th>單位</th>
+                            <th>說明</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultTable">
+                    </tbody>
+                </table>
+            </div>
+            <div id="irrigationAdvice" class="alert alert-info-custom mt-3"></div>
+            <div id="calculationDetails" class="calculation-details mt-3"></div>
+            <div id="debugInfo" class="debug-info"></div>
         </div>
-  
-        <div class="d-flex mb-3">
-          <div class="form-group me-2">
-            <label for="rootDepth">根深(公分):</label>
-            <input type="number" id="rootDepth" required min="1" max="200" value="30">
-          </div>
-          <div class="form-group">
-            <label for="plantingDensity">種植密度:</label>
-            <select id="plantingDensity" required>
-              <option value="high">高密度</option>
-              <option value="low" selected>低密度</option>
-            </select>
-          </div>
-        </div>
-  
-        <div class="form-group mb-3">
-          <label for="rainfall"><span style="font-size: 14px;">日降雨量(mm):</span></label>
-          <input type="number" id="rainfall" required min="0" step="0.1" value="0">
-        </div>
-  
-        <div class="form-group mb-3">
-          <label for="managementStyle"><span style="font-size: 14px;">管理方式:</span></label>
-          <select id="managementStyle" required>
-            <option value="wet">濕潤(土壤水分張力40kPa)</option>
-            <option value="normal" selected>一般(土壤水分張力60kPa)</option>
-            <option value="dry">乾燥(土壤水分張力100kPa)</option>
-          </select>
-        </div>
-  
-        <div class="form-group mb-3">
-          <label for="irrigationSystem">灌溉系統:</label>
-          <select id="irrigationSystem" required>
-            <option value="sprinkler_above">噴灌(樹冠上層)</option>
-            <option value="sprinkler_below">噴灌(樹冠下層)</option>
-            <option value="microsprinkler" selected>微噴灌</option>
-            <option value="drip">滴灌</option>
-          </select>
-        </div>
-  
-        <div class="form-group mb-3">
-          <label for="initialDeficit">初始耗水量<span style="font-size: 14px;">(mm/選填,留空系統自動計算):</span></label>
-          <input type="number" id="initialDeficit" min="0" step="0.1">
-        </div>
-  
-        <button type="submit" class="btn btn-outline-primary mb-2">計算灌溉建議<i class="bi bi-arrow-down"></i></button>
-      </form>
-  
-      <div id="result" class="result-container">
-        <div id="resultMessage" class="result-message"></div>
-        <div id="detailResults" class="detail-results"></div>
-      </div>
     </div>
-    
-  </div>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js"
-    integrity="sha384-k6d4wzSIapyDyv1kpU366/PK5hCdSbCRGRCMv+eplOQJWyd1fbcAu9OCUj5zNLiq"
-    crossorigin="anonymous"></script>
-  <script src="script2.js"></script>
-</body>
+    <script>
+      // 常數定義
+      const CONSTANTS = {
+          a: 0.0023,      // ETo計算係數 (修正為較合理的值)
+          b: -0.256,      // ETo計算係數 (修正為較合理的值)
+          h: 160,        // ETo計算係數 (修正為較合理的值)
+          INr: 3,         // 植物截留量 (mm)
+          uI: 10,         // 基準灌溉深度 (mm)
+          maxIrrigation: 30 // 最大單次灌溉量 (mm)
+      };
 
+      // 生育期定義
+      const GROWTH_STAGES = {
+          'flowerBud': {
+              stage: '花芽分化期',
+              cd: 'd',
+              description: '土壤水分需求較低，維持適度乾燥有利花芽分化',
+              kc: 0.3,
+              waterNeed: 'low'
+          },
+          'springFlush': {
+              stage: '春梢萌發期',
+              cd: 'd',
+              description: '新梢生長需要適度水分，避免過度乾燥',
+              kc: 0.5,
+              waterNeed: 'medium'
+          },
+          'fruitDev': {
+              stage: '著果及果實發育期',
+              cd: 'c',
+              description: '果實發育的關鍵期，需要充足而穩定的水分',
+              kc: 0.8,
+              waterNeed: 'high'
+          },
+          'harvest': {
+              stage: '果實轉色至採收期',
+              cd: 'c',
+              description: '適度控制水分有利果實品質提升',
+              kc: 0.6,
+              waterNeed: 'medium'
+          },
+          'dormant': {
+              stage: '休眠期',
+              cd: 'd',
+              description: '維持基本需水量，可適度控制灌溉',
+              kc: 0.3,
+              waterNeed: 'low'
+          }
+      };
+
+      // 土壤水分管理參數
+      const SOIL_TENSION = {
+          'wet': { 
+              tension: 25, 
+              c: 0.30, 
+              d: 0.32,
+              description: '適合生長發育期使用'
+          },
+          'suitable': { 
+              tension: 40, 
+              c: 0.35, 
+              d: 0.40,
+              description: '一般情況下的推薦值'
+          },
+          'slightDry': { 
+              tension: 60, 
+              c: 0.45, 
+              d: 0.45,
+              description: '適合果實發育後期'
+          },
+          'controlled': { 
+              tension: 100, 
+              c: 0.45, 
+              d: 0.57,
+              description: '用於控制徒長'
+          }
+      };
+
+      // 灌溉系統參數
+      const IRRIGATION_SYSTEMS = {
+          'sprinkler': { 
+              efficiency: 0.85, 
+              INi: 2.0,
+              description: '適合大面積均勻灌溉'
+          },
+          'microSpray': { 
+              efficiency: 0.90, 
+              INi: 1.0,
+              description: '適合局部精準灌溉'
+          },
+          'drip': { 
+              efficiency: 0.95, 
+              INi: 0.5,
+              description: '最節水的灌溉方式'
+          }
+      };
+
+      function getDayOfYear(date) {
+          const start = new Date(date.getFullYear(), 0, 0);
+          const diff = date - start;
+          const oneDay = 1000 * 60 * 60 * 24;
+          return Math.floor(diff / oneDay);
+      }
+
+      function calculateETo(dayOfYear) {
+          // 修改 ETo 計算方式，使用正弦函數模擬季節變化
+          const seasonalFactor = Math.sin((dayOfYear - 80) * 2 * Math.PI / 365) * 0.5 + 1;
+          return Math.max(2, Math.min(8, 5 * seasonalFactor));
+      }
+
+      function calculateKc(baseKc, treeAge, plantingDensity) {
+          // 樹齡調整
+          let ageAdjustment = 1.0;
+          if (treeAge <= 5) {
+              ageAdjustment = 0.6 + (treeAge * 0.08);
+          } else if (treeAge <= 10) {
+              ageAdjustment = 0.9 + ((treeAge - 5) * 0.02);
+          }
+
+          // 密度調整
+          const densityFactor = plantingDensity === 'high' ? 1.1 : 1.0;
+
+          return baseKc * ageAdjustment * densityFactor;
+      }
+
+      function calculateKs(Fc, D_prev) {
+          // 修改水分脅迫係數計算
+          const threshold = Fc * 0.7; // 臨界點設為田間容水量的70%
+          if (D_prev <= threshold) {
+              return 1.0;
+          } else {
+              return Math.max(0, (Fc - D_prev) / (Fc - threshold));
+          }
+      }
+
+      function calculateEffectiveRainfall(rainfall, D_prev, ETc) {
+          if (rainfall <= CONSTANTS.INr) {
+              return 0;
+          }
+          const Pe = rainfall - CONSTANTS.INr;
+          return Math.min(Pe, D_prev + ETc);
+      }
+
+      function calculateRAM(currentStage, Fc, managementTarget) {
+          const params = SOIL_TENSION[managementTarget];
+          const coefficient = currentStage.cd === 'c' ? params.c : params.d;
+          // 確保 RAM 在合理範圍內
+          return Math.min(Fc * coefficient, Fc * 0.8);
+      }
+
+      function calculateIrrigationAmount(D, RAM, irrigationType) {
+          const system = IRRIGATION_SYSTEMS[irrigationType];
+          
+          // 當土壤耗水量超過管理容許耗水量時需要灌溉
+          if (D > RAM) {
+              const deficit = D - RAM;
+              // 考慮灌溉系統效率
+              const grossIrrigation = deficit / system.efficiency;
+              
+              // 確保灌溉量在合理範圍內
+              return Math.min(Math.max(CONSTANTS.uI, grossIrrigation), CONSTANTS.maxIrrigation);
+          }
+          return 0;
+      }
+
+      function calculateWaterBalance(params) {
+          const { D_prev, ETc, Pe, Fc, irrigation = 0 } = params;
+          
+          // 計算當日耗水量
+          let D = D_prev + ETc - Pe - irrigation;
+          
+          // 確保耗水量在合理範圍內
+          return Math.min(Math.max(0, D), Fc);
+      }
+
+      function calculateIrrigation() {
+          // 獲取輸入值
+          const date = new Date(document.getElementById('calculationDate').value);
+          const growthStage = document.getElementById('growthStage').value;
+          if (!growthStage) {
+              alert('請選擇當前生育期！');
+              return;
+          }
+          
+          const currentStage = GROWTH_STAGES[growthStage];
+          const dayOfYear = getDayOfYear(date);
+          const treeAge = parseInt(document.getElementById('treeAge').value);
+          const plantingDensity = document.getElementById('plantingDensity').value;
+          const soilCoef = parseFloat(document.getElementById('soilType').value);
+          const rootDepth = parseFloat(document.getElementById('rootDepth').value);
+          const managementTarget = document.getElementById('managementTarget').value;
+          const irrigationType = document.getElementById('irrigationType').value;
+          const D_prev = parseFloat(document.getElementById('previousDeficit').value);
+          const rainfall = parseFloat(document.getElementById('rainfall').value);
+
+          // 計算結果
+          const results = {};
+          
+          // 1. 計算田間容水量
+          results.Fc = soilCoef * rootDepth;
+          
+          // 2. 計算參考蒸發散量
+          results.ETo = calculateETo(dayOfYear);
+          
+          // 3. 計算作物係數
+          results.Kc = calculateKc(currentStage.kc, treeAge, plantingDensity);
+          
+          // 4. 計算水分脅迫係數
+          results.Ks = calculateKs(results.Fc, D_prev);
+          
+          // 5. 計算實際蒸發散量
+          results.ETc = results.ETo * results.Kc * results.Ks;
+          
+          // 6. 計算有效雨量
+          results.Pe = calculateEffectiveRainfall(rainfall, D_prev, results.ETc);
+          
+          // 7. 計算管理容許耗水量
+          results.RAM = calculateRAM(currentStage, results.Fc, managementTarget);
+          
+          // 8. 計算當前土壤耗水量
+          results.D = calculateWaterBalance({
+              D_prev: D_prev,
+              ETc: results.ETc,
+              Pe: results.Pe,
+              Fc: results.Fc
+          });
+          
+          // 9. 計算建議灌溉量
+          results.irrigationAmount = calculateIrrigationAmount(
+              results.D,
+              results.RAM,
+              irrigationType
+          );
+
+          // 更新除錯信息
+          updateDebugInfo({
+              inputs: {
+                  date, growthStage, treeAge, plantingDensity,
+                  soilCoef, rootDepth, managementTarget,
+                  irrigationType, D_prev, rainfall
+              },
+              results: results
+          });
+
+          // 顯示結果
+          displayResults(results, currentStage);
+      }
+
+      function displayResults(results, currentStage) {
+          // 更新生育期信息
+          document.getElementById('growthStageInfo').innerHTML = `
+              <strong>當前生育期：</strong>${currentStage.stage}<br>
+              <strong>特徵：</strong>${currentStage.description}<br>
+              <strong>需水特性：</strong>${getWaterNeedDescription(currentStage.waterNeed)}
+          `;
+
+          // 更新結果表格
+          const resultTable = document.getElementById('resultTable');
+          resultTable.innerHTML = Object.entries(results)
+              .map(([key, value]) => `
+                  <tr>
+                      <td>${getParameterName(key)}</td>
+                      <td>${typeof value === 'number' ? value.toFixed(2) : value}</td>
+                      <td>${getUnit(key)}</td>
+                      <td>${getDescription(key)}</td>
+                  </tr>
+              `).join('');
+
+          // 更新灌溉建議
+          const adviceDiv = document.getElementById('irrigationAdvice');
+          if (results.irrigationAmount > 0) {
+              const irrigationType = document.getElementById('irrigationType').value;
+              const system = IRRIGATION_SYSTEMS[irrigationType];
+              
+              adviceDiv.innerHTML = `
+                  <strong>灌溉建議：</strong><br>
+                  1. 建議灌溉量：${results.irrigationAmount.toFixed(2)} mm<br>
+                  2. 考慮${system.description}<br>
+                  3. 建議分次灌溉方案：<br>
+                     - 清晨：${(results.irrigationAmount * 0.4).toFixed(2)} mm<br>
+                     - 傍晚：${(results.irrigationAmount * 0.6).toFixed(2)} mm<br>
+                  4. 注意事項：<br>
+                     - 當前生育期（${currentStage.stage}）${currentStage.description}<br>
+                     - 灌溉後請觀察土壤表層濕潤程度<br>
+                     - 監測葉片萎凋情況
+              `;
+          } else {
+              adviceDiv.innerHTML = `
+                  <strong>目前不需要灌溉</strong><br>
+                  - 當前生育期（${currentStage.stage}）水分狀況適宜<br>
+                  - 建議持續監測土壤水分狀況
+              `;
+          }
+
+          // 顯示結果區域
+          document.getElementById('results').style.display = 'block';
+      }
+
+      function updateDebugInfo(data) {
+          const debugInfo = document.getElementById('debugInfo');
+          debugInfo.innerHTML = `
+              <h5>計算過程詳情：</h5>
+              <pre>${JSON.stringify(data, null, 2)}</pre>
+          `;
+      }
+
+      function toggleDebugInfo() {
+          const debugInfo = document.getElementById('debugInfo');
+          debugInfo.style.display = debugInfo.style.display === 'none' ? 'block' : 'none';
+      }
+
+      function getParameterName(key) {
+          const names = {
+              Fc: '田間容水量',
+              ETo: '參考蒸發散量',
+              Kc: '作物係數',
+              Ks: '水分脅迫係數',
+              ETc: '作物蒸發散量',
+              Pe: '有效雨量',
+              RAM: '管理容許耗水量',
+              D: '土壤耗水量',
+              irrigationAmount: '建議灌溉量'
+          };
+          return names[key] || key;
+      }
+
+      function getUnit(key) {
+          const units = {
+              Fc: 'mm',
+              ETo: 'mm/day',
+              Kc: '',
+              Ks: '',
+              ETc: 'mm/day',
+              Pe: 'mm',
+              RAM: 'mm',
+              D: 'mm',
+              irrigationAmount: 'mm'
+          };
+          return units[key] || '';
+      }
+
+      function getDescription(key) {
+          const descriptions = {
+              Fc: '土壤可儲存的最大水分量',
+              ETo: '參考作物蒸發散量',
+              Kc: '作物係數',
+              Ks: '水分脅迫係數',
+              ETc: '實際作物蒸發散量',
+              Pe: '有效雨量',
+              RAM: '土壤水分管理容許耗水量',
+              D: '當前土壤耗水量',
+              irrigationAmount: '建議灌溉量'
+          };
+          return descriptions[key] || '';
+      }
+
+      function getWaterNeedDescription(waterNeed) {
+          const descriptions = {
+              'low': '需水量低，可適度控制灌溉',
+              'medium': '需要適度的水分供應',
+              'high': '需要充足的水分供應'
+          };
+          return descriptions[waterNeed] || '一般需水量';
+      }
+  </script>
+</body>
 </html>
