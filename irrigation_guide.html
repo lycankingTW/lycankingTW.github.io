@@ -87,11 +87,13 @@
             font-weight: 500;
             border-radius: 25px;
             transition: all 0.3s ease;
+            color: white;
         }
         
         .btn-calculate:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+            color: white;
         }
         
         .results-container {
@@ -220,7 +222,7 @@
                                             <label class="form-label fw-bold">
                                                 <i class="fas fa-tree"></i> 樹齡 (年)
                                             </label>
-                                            <input type="number" class="form-control" id="treeAge" min="1" max="50" required>
+                                            <input type="number" class="form-control" id="treeAge" min="1" max="50" value="8" required>
                                             <div class="parameter-description">影響作物係數(Kc)的重要因子</div>
                                         </div>
                                     </div>
@@ -231,7 +233,7 @@
                                             </label>
                                             <select class="form-select" id="plantingDensity">
                                                 <option value="high">高密度 (≥200株/公頃)</option>
-                                                <option value="low">低密度 (<200株/公頃)</option>
+                                                <option value="low" selected>低密度 (<200株/公頃)</option>
                                             </select>
                                             <div class="parameter-description">影響整體園區蒸發散量</div>
                                         </div>
@@ -402,12 +404,12 @@
     <script>
         // 系統常數定義
         const SYSTEM_CONSTANTS = {
-            ETO_BASE: 4.5,          // 基準參考蒸發散量 (mm/day)
-            ETO_VARIATION: 2.0,     // 季節變化幅度
-            INr: 3.0,               // 植物截留量 (mm)
-            BASE_IRRIGATION: 8,     // 基準灌溉深度 (mm)
-            MAX_IRRIGATION: 25,     // 最大單次灌溉量 (mm)
-            MIN_IRRIGATION: 3       // 最小灌溉量 (mm)
+            ETO_BASE: 4.5,
+            ETO_VARIATION: 2.0,
+            INr: 3.0,
+            BASE_IRRIGATION: 8,
+            MAX_IRRIGATION: 25,
+            MIN_IRRIGATION: 3
         };
 
         // 生育期特性定義
@@ -519,7 +521,6 @@
 
         // 初始化表單
         function initializeForm() {
-            // 設定當前日期
             document.getElementById('calculationDate').valueAsDate = new Date();
         }
 
@@ -537,11 +538,9 @@
                 return customValue;
             }
             
-            // 使用正弦函數模擬季節變化
             const seasonalFactor = Math.sin((dayOfYear - 80) * 2 * Math.PI / 365) * 0.5 + 1;
             const eto = SYSTEM_CONSTANTS.ETO_BASE * seasonalFactor;
             
-            // 限制在合理範圍內
             return Math.max(2, Math.min(8, eto));
         }
 
@@ -549,7 +548,6 @@
         function calculateKc(baseKc, treeAge, plantingDensity) {
             let ageAdjustment = 1.0;
             
-            // 樹齡調整係數
             if (treeAge <= 3) {
                 ageAdjustment = 0.5 + (treeAge * 0.1);
             } else if (treeAge <= 8) {
@@ -560,7 +558,6 @@
                 ageAdjustment = 1.0 - ((treeAge - 15) * 0.01);
             }
 
-            // 種植密度調整
             const densityFactor = plantingDensity === 'high' ? 1.15 : 1.0;
 
             return Math.max(0.2, Math.min(1.5, baseKc * ageAdjustment * densityFactor));
@@ -568,7 +565,7 @@
 
         // 計算水分脅迫係數 (Ks)
         function calculateKs(Fc, D_prev) {
-            const threshold = Fc * 0.65; // 設定脅迫開始點
+            const threshold = Fc * 0.65;
             
             if (D_prev <= threshold) {
                 return 1.0;
@@ -609,22 +606,25 @@
             const system = IRRIGATION_SYSTEMS[irrigationType];
             const deficit = D - RAM;
             
-            // 考慮系統效率
             let grossIrrigation = deficit / system.efficiency + system.INi;
             
-            // 調整到合理範圍
             grossIrrigation = Math.max(SYSTEM_CONSTANTS.MIN_IRRIGATION, grossIrrigation);
             grossIrrigation = Math.min(SYSTEM_CONSTANTS.MAX_IRRIGATION, grossIrrigation);
             
             return Math.round(grossIrrigation * 10) / 10;
         }
 
-        // 主要計算函數
-        function calculateIrrigation() {
-            try {
-                // 獲取輸入參數
-                const inputs = getInputValues();
-                if (!validateInputs(inputs)) return;
-
-                // 執行計算
-                const results = performCalculations(inputs
+        // 獲取輸入值
+        function getInputValues() {
+            return {
+                date: new Date(document.getElementById('calculationDate').value),
+                growthStage: document.getElementById('growthStage').value,
+                treeAge: parseInt(document.getElementById('treeAge').value),
+                plantingDensity: document.getElementById('plantingDensity').value,
+                soilCoef: parseFloat(document.getElementById('soilType').value),
+                rootDepth: parseFloat(document.getElementById('rootDepth').value),
+                managementTarget: document.getElementById('managementTarget').value,
+                irrigationType: document.getElementById('irrigationType').value,
+                previousDeficit: parseFloat(document.getElementById('previousDeficit').value),
+                rainfall: parseFloat(document.getElementById('rainfall').value),
+                customETo: parseFloat(document.getElementById('customETo').value) ||
