@@ -223,7 +223,7 @@
                                                 <i class="fas fa-tree"></i> 樹齡 (年)
                                             </label>
                                             <input type="number" class="form-control" id="treeAge" min="1" max="50" value="8" required>
-                                            <div class="parameter-description">影響作物係數(Kc)的重要因子</div>
+                                            <div class="parameter-description">影響作物係數(Kc)和根系深度</div>
                                         </div>
                                     </div>
                                     <div class="col-md-6">
@@ -260,10 +260,15 @@
                                 
                                 <div class="mb-3">
                                     <label class="form-label fw-bold">
-                                        <i class="fas fa-ruler-vertical"></i> 有效根系深度 (cm)
+                                        <i class="fas fa-info-circle"></i> 系統自動計算項目
                                     </label>
-                                    <input type="number" class="form-control" id="rootDepth" min="20" max="150" value="80" required>
-                                    <div class="parameter-description">成年柑橘樹通常為60-100cm</div>
+                                    <div class="alert alert-info">
+                                        <small>
+                                            • 有效根系深度：根據樹齡自動計算<br>
+                                            • 前日土壤耗水量：系統模型推估<br>
+                                            • 參考蒸發散量：季節性自動計算
+                                        </small>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -307,16 +312,7 @@
                     <div class="form-section">
                         <h4><i class="fas fa-database"></i> 當日監測數據</h4>
                         <div class="row">
-                            <div class="col-lg-4">
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="fas fa-chart-line"></i> 前日土壤耗水量 D[x-1] (mm)
-                                    </label>
-                                    <input type="number" class="form-control" id="previousDeficit" step="0.1" value="25" required>
-                                    <div class="parameter-description">前一天累積的土壤水分虧缺量</div>
-                                </div>
-                            </div>
-                            <div class="col-lg-4">
+                            <div class="col-lg-6">
                                 <div class="mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="fas fa-cloud-rain"></i> 當日降雨量 (mm)
@@ -325,13 +321,13 @@
                                     <div class="parameter-description">實測或氣象預報的降雨量</div>
                                 </div>
                             </div>
-                            <div class="col-lg-4">
+                            <div class="col-lg-6">
                                 <div class="mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="fas fa-thermometer-half"></i> 預估參考蒸發散量 (mm)
                                     </label>
-                                    <input type="number" class="form-control" id="customETo" step="0.1" placeholder="自動計算">
-                                    <div class="parameter-description">可手動輸入，否則系統自動計算</div>
+                                    <input type="number" class="form-control" id="customETo" step="0.1" placeholder="系統自動計算">
+                                    <div class="parameter-description">可手動輸入，否則系統根據季節自動計算</div>
                                 </div>
                             </div>
                         </div>
@@ -519,9 +515,45 @@
             }
         };
 
+        // 頁面載入時初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeForm();
+        });
+
         // 初始化表單
         function initializeForm() {
             document.getElementById('calculationDate').valueAsDate = new Date();
+        }
+
+        // 根據樹齡計算有效根系深度
+        function calculateRootDepth(treeAge) {
+            if (treeAge <= 2) {
+                return 30 + (treeAge * 10);
+            } else if (treeAge <= 5) {
+                return 50 + ((treeAge - 2) * 10);
+            } else if (treeAge <= 15) {
+                return 80 + ((treeAge - 5) * 2);
+            } else {
+                return Math.max(90, 100 - ((treeAge - 15) * 1));
+            }
+        }
+
+        // 計算前日土壤耗水量（模型估算）
+        function calculatePreviousDeficit(Fc, growthStage, season) {
+            const stageInfo = GROWTH_STAGES[growthStage];
+            let baseDeficit = Fc * 0.3;
+            
+            const stageMultiplier = {
+                'flowerBud': 0.7,
+                'springFlush': 0.9,
+                'fruitDev': 1.2,
+                'harvest': 1.0,
+                'dormant': 0.6
+            };
+            
+            const seasonMultiplier = Math.sin((season - 80) * 2 * Math.PI / 365) * 0.3 + 1;
+            
+            return baseDeficit * stageMultiplier[growthStage] * seasonMultiplier;
         }
 
         // 計算年內天數
@@ -559,7 +591,6 @@
             }
 
             const densityFactor = plantingDensity === 'high' ? 1.15 : 1.0;
-
             return Math.max(0.2, Math.min(1.5, baseKc * ageAdjustment * densityFactor));
         }
 
@@ -608,23 +639,4 @@
             
             let grossIrrigation = deficit / system.efficiency + system.INi;
             
-            grossIrrigation = Math.max(SYSTEM_CONSTANTS.MIN_IRRIGATION, grossIrrigation);
-            grossIrrigation = Math.min(SYSTEM_CONSTANTS.MAX_IRRIGATION, grossIrrigation);
-            
-            return Math.round(grossIrrigation * 10) / 10;
-        }
-
-        // 獲取輸入值
-        function getInputValues() {
-            return {
-                date: new Date(document.getElementById('calculationDate').value),
-                growthStage: document.getElementById('growthStage').value,
-                treeAge: parseInt(document.getElementById('treeAge').value),
-                plantingDensity: document.getElementById('plantingDensity').value,
-                soilCoef: parseFloat(document.getElementById('soilType').value),
-                rootDepth: parseFloat(document.getElementById('rootDepth').value),
-                managementTarget: document.getElementById('managementTarget').value,
-                irrigationType: document.getElementById('irrigationType').value,
-                previousDeficit: parseFloat(document.getElementById('previousDeficit').value),
-                rainfall: parseFloat(document.getElementById('rainfall').value),
-                customETo: parseFloat(document.getElementById('customETo').value) ||
+            grossIrrigation =
