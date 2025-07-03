@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GPS位置定位</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+
+    .container {
+      background-color: #f5f5f5;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+      color: #2c3e50;
+      text-align: center;
+    }
+
+    button {
+      background-color: #3498db;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: block;
+      margin: 20px auto;
+      transition: background-color 0.3s;
+    }
+
+    button:hover {
+      background-color: #2980b9;
+    }
+
+    #location-data,
+    #weather-info {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #fff;
+      border-radius: 4px;
+      border-left: 4px solid #3498db;
+    }
+
+    #weather-info {
+      background-color: #e8f4fc;
+      border-left: 4px solid #2980b9;
+    }
+
+    .coordinates {
+      font-weight: bold;
+      color: #2c3e50;
+    }
+
+    .error {
+      color: #e74c3c;
+      font-weight: bold;
+    }
+
+    .map-container {
+      width: 100%;
+      height: 400px;
+      margin-top: 20px;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>GPS位置定位</h1>
+    <p>點擊下方按鈕獲取您當前的GPS位置資訊：</p>
+    <button id="get-location">獲取我的位置</button>
+    <div id="location-data">
+      <p>位置資訊將顯示在這裡...</p>
+    </div>
+    <div id="weather-info">
+      <h3>氣象預報</h3>
+      <p>資料載入中...</p>
+    </div>
+    <div class="map-container">
+      <div id="map"></div>
+    </div>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.10.0/axios.min.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const locationButton = document.getElementById('get-location');
+      const locationData = document.getElementById('location-data');
+
+      locationButton.addEventListener('click', function () {
+        locationData.innerHTML = '<p>正在獲取位置資訊...</p>';
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(function (position) {
+            const latitude = position.coords.latitude;
+            const longitude = position.coords.longitude;
+            const messagesFromGoogleMap = `
+              <p>位置獲取成功！</p>
+              <p><span class="coordinates">緯度：</span> ${latitude}</p>
+              <p><span class="coordinates">經度：</span> ${longitude}</p>
+              <p><span class="coordinates">時間戳記：</span> ${new Date(position.timestamp).toLocaleString()}</p>
+            `;
+            locationData.innerHTML = messagesFromGoogleMap;
+            activateAPIs(latitude, longitude);
+          });
+        } else {
+          locationData.innerHTML = '<p class="error">您的設備或瀏覽器不支援地理位置功能。</p>';
+        }
+      });
+    });
+
+    function activateAPIs(latitude, longitude) {
+      const cityList = {
+        宜蘭縣: 'F-D0047-003', 桃園市: 'F-D0047-007', 新竹縣: 'F-D0047-011', 苗栗縣: 'F-D0047-015',
+        彰化縣: 'F-D0047-019', 南投縣: 'F-D0047-023', 雲林縣: 'F-D0047-027', 嘉義縣: 'F-D0047-031',
+        屏東縣: 'F-D0047-035', 臺東縣: 'F-D0047-039', 花蓮縣: 'F-D0047-043', 澎湖縣: 'F-D0047-047',
+        基隆市: 'F-D0047-051', 新竹市: 'F-D0047-055', 嘉義市: 'F-D0047-059', 臺北市: 'F-D0047-063',
+        高雄市: 'F-D0047-067', 新北市: 'F-D0047-071', 臺中市: 'F-D0047-075', 臺南市: 'F-D0047-079',
+        連江縣: 'F-D0047-083', 金門縣: 'F-D0047-087'
+      };
+      const apikey = 'CWA-D32F5AAF-8CB1-49C5-A651-8AD504393777';
+      const format = 'JSON';
+      const locationApiUrl = `https://api.nlsc.gov.tw/other/TownVillagePointQuery/${longitude}/${latitude}/4326`;
+
+      axios.get(locationApiUrl).then((res) => {
+        if (res.status === 200 && res.data.ctyCode) {
+          const ctyName = res.data.ctyName;
+          const townName = res.data.townName;
+          const dataid = cityList[ctyName];
+          const apiUrl = `https://opendata.cwa.gov.tw/api/v1/rest/datastore/${dataid}?Authorization=${apikey}&format=${format}&LocationName=${townName}`;
+          getWeatherApi(apiUrl, townName);
+        } else {
+          document.getElementById('weather-info').innerHTML = '<p class="error">行政區資料無法取得。</p>';
+        }
+      }).catch((err) => {
+        document.getElementById('weather-info').innerHTML = '<p class="error">行政區 API 失敗</p>';
+        console.log(err);
+      });
+
+      function getWeatherApi(apiUrl, townName) {
+        axios.get(apiUrl).then((res) => {
+          if (!townName || res.status !== 200) {
+            document.getElementById('weather-info').innerHTML = '<p class="error">氣象資料取得失敗。</p>';
+            return;
+          }
+          const weatherElement = res.data.records.Locations[0].Location[0].WeatherElement;
+          const startTime = new Date(weatherElement[0].Time[0].StartTime);
+          const endTime = new Date(weatherElement[0].Time[0].EndTime);
+          const dateRange = `${startTime.getMonth() + 1}月${startTime.getDate()}日 ${startTime.getHours()}點${startTime.getMinutes()}分 ～ ${endTime.getMonth() + 1}月${endTime.getDate()}日 ${endTime.getHours()}點${endTime.getMinutes()}分`;
+
+          const description = weatherElement[14].Time[0].ElementValue[0].WeatherDescription;
+          const avgTemp = weatherElement[0].Time[0].ElementValue[0].Temperature;
+          const maxCI = weatherElement[7].Time[0].ElementValue[0].MaxComfortIndex;
+          const minCI = weatherElement[8].Time[0].ElementValue[0].MinComfortIndex;
+          const windSpeed = weatherElement[9].Time[0].ElementValue[0].WindSpeed;
+          const rainProb = weatherElement[11].Time[0].ElementValue[0].ProbabilityOfPrecipitation;
+
+          const weatherInfoHtml = `
+            <h3>${townName} 氣象預報</h3>
+            <p><strong>預報時段：</strong>${dateRange}</p>
+            <p><strong>天氣描述：</strong>${description}</p>
+            <p><strong>平均溫度：</strong>${avgTemp} °C</p>
+            <p><strong>舒適度指數：</strong> ${minCI} ～ ${maxCI}</p>
+            <p><strong>風速：</strong>${windSpeed} m/s</p>
+            <p><strong>12小時降雨機率：</strong>${rainProb} %</p>
+          `;
+          document.getElementById('weather-info').innerHTML = weatherInfoHtml;
+        }).catch((err) => {
+          document.getElementById('weather-info').innerHTML = '<p class="error">氣象資料取得失敗。</p>';
+          console.log(err);
+        });
+      }
+    }
+  </script>
+</body>
+
+</html>
