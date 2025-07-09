@@ -638,3 +638,143 @@
                         ETo = 7.0; // 夏季高峰
                     } else if (month >= 4 && month <= 5) {
                         ETo = 5.5
+                                        } else if (month >= 9 && month <= 10) {
+                        ETo = 4.5; // 秋季
+                    } else {
+                        ETo = 3.0; // 冬季
+                    }
+
+                    // 作物係數計算
+                    const baseKc = growthParams[growthStage].baseKc;
+                    const ageAdjustment = treeAge <= 3 ? 0.8 : (treeAge <= 8 ? 1.0 : 1.1);
+                    const densityFactor = densityParams[plantingDensity].factor;
+                    const Kc = baseKc * ageAdjustment * densityFactor;
+
+                    // 作物蒸發散量
+                    const ETc = ETo * Kc;
+
+                    // 前日累積耗水 (假設為1-3天累積)
+                    const previousDeficit = ETc * 2;
+
+                    // 有效降雨量 (扣除20%截留損失)
+                    const effectiveRainfall = rainfall * 0.8;
+
+                    // 土壤水分虧缺
+                    const D = previousDeficit + ETc - effectiveRainfall;
+
+                    // 管理容許耗水量
+                    const RAM = Fc * managementParams[managementTarget].factor;
+
+                    // 淨灌溉需求
+                    const netIrrigation = Math.max(0, D - RAM);
+
+                    // 系統效率調整
+                    const systemEfficiency = irrigationParams[irrigationType].efficiency;
+                    const irrigationAmount = netIrrigation / systemEfficiency;
+
+                    // 總用水量計算 (公噸)
+                    const totalWaterTons = Math.round((irrigationAmount * farmArea * 10) * 10) / 10;
+
+                    // 儲存計算結果
+                    calculationResults = {
+                        dateInfo: date.toLocaleDateString('zh-TW'),
+                        rootDepth: rootDepth,
+                        Fc: Fc,
+                        ETo: ETo,
+                        baseKc: baseKc,
+                        ageAdjustment: ageAdjustment,
+                        densityFactor: densityFactor,
+                        densityName: densityParams[plantingDensity].name,
+                        Kc: Kc,
+                        ETc: ETc,
+                        previousDeficit: previousDeficit,
+                        effectiveRainfall: effectiveRainfall,
+                        D: D,
+                        RAM: RAM,
+                        managementName: managementParams[managementTarget].name,
+                        managementKPa: managementParams[managementTarget].kPa,
+                        netIrrigation: netIrrigation,
+                        systemEfficiency: systemEfficiency,
+                        systemName: irrigationParams[irrigationType].name,
+                        irrigationAmount: irrigationAmount,
+                        totalWaterTons: totalWaterTons,
+                        farmArea: farmArea
+                    };
+
+                    // 顯示結果
+                    displayResults();
+
+                } catch (error) {
+                    console.error('計算錯誤:', error);
+                    alert('計算過程中發生錯誤，請檢查輸入參數');
+                }
+            }
+
+            // 顯示結果函數
+            function displayResults() {
+                const r = calculationResults;
+                
+                // 顯示結果區域
+                document.getElementById('results').style.display = 'block';
+                
+                // 更新水量卡片
+                const waterAmountText = document.getElementById('waterAmountText');
+                const irrigationRecommendation = document.getElementById('irrigationRecommendation');
+                const areaInfo = document.getElementById('areaInfo');
+                const systemInfo = document.getElementById('systemInfo');
+                
+                if (r.netIrrigation > 0) {
+                    waterAmountText.textContent = `${r.totalWaterTons} 公噸`;
+                    irrigationRecommendation.textContent = `建議灌溉 ${r.irrigationAmount.toFixed(1)} mm`;
+                    waterAmountText.style.color = '#fff';
+                } else {
+                    waterAmountText.textContent = '無需灌溉';
+                    irrigationRecommendation.textContent = '土壤水分充足';
+                    waterAmountText.style.color = '#fff';
+                }
+                
+                areaInfo.textContent = `園區面積：${r.farmArea} 公頃`;
+                systemInfo.textContent = `使用${r.systemName}`;
+                
+                // 更新建議文字
+                const irrigationAdvice = document.getElementById('irrigationAdvice');
+                let adviceText = '';
+                
+                if (r.netIrrigation > 0) {
+                    adviceText = `
+                        <strong>🚰 灌溉建議：</strong><br>
+                        • 當前為${growthParams[document.getElementById('growthStage').value].name}，需水量${r.Kc > 0.7 ? '較高' : r.Kc > 0.5 ? '中等' : '較低'}<br>
+                        • 土壤水分虧缺達 ${r.D.toFixed(1)} mm，超過管理閾值 ${r.RAM.toFixed(1)} mm<br>
+                        • 建議在今日或明日進行灌溉，灌溉量 ${r.irrigationAmount.toFixed(1)} mm<br>
+                        • 總用水量約 ${r.totalWaterTons} 公噸 (${r.farmArea} 公頃)
+                    `;
+                } else {
+                    adviceText = `
+                        <strong>✅ 水分狀況良好：</strong><br>
+                        • 土壤水分虧缺僅 ${r.D.toFixed(1)} mm，未達管理閾值 ${r.RAM.toFixed(1)} mm<br>
+                        • 暫時無需灌溉，可持續監測土壤濕度<br>
+                        • 如遇連續晴天，建議2-3天後重新評估<br>
+                        ${r.effectiveRainfall > 0 ? `• 近期降雨 ${rainfall} mm 有助於土壤水分補充` : ''}
+                    `;
+                }
+                
+                irrigationAdvice.innerHTML = adviceText;
+                
+                // 滾動到結果區域
+                document.getElementById('results').scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'start' 
+                });
+            }
+
+            // 參數說明對照表 (供參考)
+            const growthParams = {
+                'flowerBud': { name: '花芽分化期', baseKc: 0.30 },
+                'springFlush': { name: '春梢萌發期', baseKc: 0.50 },
+                'fruitDev': { name: '果實發育期', baseKc: 0.85 },
+                'harvest': { name: '採收期', baseKc: 0.65 },
+                'dormant': { name: '休眠期', baseKc: 0.30 }
+            };
+        </script>
+    </body>
+    </html>
